@@ -1,52 +1,67 @@
 # coreboot_guide
 Coreboot and me_cleaner: Free Your BIOS ( updated and translated https://connect.ed-diamond.com/GNU-Linux-Magazine/GLMF-220/Coreboot-et-me_cleaner-liberez-votre-BIOS)
-Cet article sʼinscrit dans une volonté de libérer du matériel récent à bas niveau. Actuellement, seul libreboot (distribution de coreboot) permet de complètement enlever le « Mangement Engine (ME) » dʼIntel et autres blobs propriétaires. Il existe cependant une possibilité de neutraliser le ME avec me_cleaner et de le réduire à ses fonctions les plus primaires.
-Le matériel le plus avancé compatible avec Libreboot en Intel date de 2008 (Lenovo X200/T) et 2010 côté AMD (Asus KPGE-D16), donc du matériel plutôt ancien bien quʼil tienne encore la route pour un usage bureautique ou multimédia simple. Il existe cependant une possibilité de neutraliser le ME avec me_cleaner et de le réduire à ses fonctions les plus primaires. Nous verrons ici comment utiliser ce logiciel non pas sur un BIOS standard (ce qui est possible), mais avec Coreboot et SeaBIOS Lʼobjectif étant dʼavoir une nouvelle image de BIOS libre et avec le moins de blobs propriétaires possible. Je précise toutefois que la manipulation a été faite avec un Lenovo X230. Je nʼai pas dʼaction chez eux, mais cʼest une marque dont les ordinateurs portables sont particulièrement bien supportés par la communauté Coreboot/Libreboot et pour laquelle nous trouvons beaucoup de drivers libres et une bonne documentation technique. Tout ce qui est présenté dans cet article est donc valable pour la plupart des Thinkpad récents.
-Le problème que lʼon rencontre sur le matériel plus récent cʼest quʼil est impossible de complètement retirer le ME sinon lʼordinateur sʼéteint au bout de 30 minutes par mesure de sécurité imposée par le logiciel privateur dʼIntel. Il existe cependant une solution : me_cleaner[1] et Coreboot[2]. Ce petit logiciel permet de neutraliser le ME et, utilisé avec Coreboot, réduire sa taille considérablement. Nous verrons les détails dans quelques instants.
-Pour rappel, Coreboot (anciennement LinuxBIOS) est un projet de logiciel libre dʼamorçage créé en 1999. Il vise à remplacer les BIOS propriétaires trouvés dans la plupart des ordinateurs par un système dont la fonction exclusive est de charger un système dʼexploitation moderne à 32 ou 64 bits.
-Il est écrit en C et en assembleur X86. me_cleaner est un script écrit en Python qui peut modifier le ME dʼIntel dans une image de BIOS compilée dont la finalité est de réduire à son strict minimum la capacité de ce firmware à interagir avec le système. Ci-après une petite matrice de risques quant aux parties non libres contenues dans un BIOS :
 
-Coreboot remplace généralement les parties VGA, EC et ne touche pas au microcode du CPU. Il intègre par défaut le ME dʼorigine, mais peut prendre un ME neutralisé et réduit via me_cleaner comme nous le verrons ultérieurement.
-1. Quelques éclaircissements
-1.1 Quʼest-ce que le Management Engine ?
-Le moteur de gestion Intel (ME « Management Engine » en anglais) est un sous-système autonome qui a été incorporé dans presque tous les chipsets de processeur dʼIntel depuis 2008. Le sous- système consiste principalement en un microprogramme propriétaire fonctionnant sur un microprocesseur distinct qui exécute des tâches pendant le démarrage, pendant que lʼordinateur est en cours dʼexécution et pendant quʼil est en veille. Tant que le chipset ou le SoC est connecté au courant (via la batterie ou lʼalimentation), il continue à fonctionner même lorsque le système est éteint. Intel affirme que le ME est nécessaire pour fournir une performance complète. Ses fonctionnements exacts sont non documentés et son code est obscurci en utilisant des tables confidentielles de Huffman stockées directement dans le matériel, de sorte que le firmware ne contient pas les informations nécessaires pour décoder son contenu. De la retro ingénierie bas niveau a cependant permis de comprendre une bonne partie des mécanismes de ME. Le principal concurrent dʼIntel, AMD, a incorporé lʼéquivalent, AMD Secure Technology (anciennement appelé Platform Security Processor), dans la quasi-totalité des processeurs post-2013.
-Le moteur de gestion est souvent confondu avec Intel AMT. AMT est basé sur le ME, mais seulement disponible sur les processeurs avec la technologie vPro. AMT permet aux propriétaires dʼadministrer à distance leur ordinateur, comme lʼallumer ou lʼéteindre et réinstaller le système dʼexploitation.
-Cependant, le ME lui-même est intégré dans tous les chipsets Intel depuis 2008, pas seulement ceux avec AMT. Tandis que AMT peut être non provisionné par le propriétaire, il nʼy a aucune manière officielle et documentée de désactiver le ME.
-LʼElectronic Frontier Foundation (EFF) et lʼexpert en sécurité Damien Zammit accusent le ME dʼêtre une porte dérobée et un problème de confidentialité. Zammit déclare que le ME a un accès complet à la mémoire (sans que le CPU parent en ait connaissance), a un accès complet à la pile TCP/IP et peut envoyer et recevoir des paquets réseau indépendamment du système dʼexploitation, contournant ainsi son pare feu. Intel affirme quʼil « ne remet pas en question les portes dans ses produits » et que ses produits « ne permettent pas à Intel de contrôler ou dʼaccéder aux systèmes informatiques sans lʼautorisation explicite de lʼutilisateur final ».
-Plusieurs faiblesses ont été trouvées dans le ME. Le 1er mai 2017, Intel a confirmé lʼexistence dʼun bogue Remote Elevation of Privilege (SA-00075) dans sa technologie de gestion. Chaque plateforme Intel dotée de la technologie de gestion standard, de gestion active ou de petites technologies Intel fournies, de Nehalem en 2008 à Kaby Lake en 2017, dispose dʼune faille de sécurité exploitable à distance dans le ME. Plusieurs façons de désactiver le ME sans autorisation qui pourraient permettre aux fonctions de ME dʼêtre sabotées ont été trouvées. Dʼimportantes failles de sécurité supplémentaires dans le ME affectant un très grand nombre dʼordinateurs intégrant le micrologiciel ME, Trusted Execution Engine (TXE) et Server Platform Services (SPS), de Skylake en 2015 à Coffee Lake en 2017, ont été confirmées par Intel le 20 novembre 2017 (SA-00086). Contrairement à SA-00075, ce bug est même présent si AMT est absent, non provisionné ou si le ME a été « désactivé » par lʼune des méthodes non officielles connues.
+Replacing Your BIOS with Coreboot and Neutralizing Intel ME
 
-1.2 Pourquoi le ME dʼIntel est-il si nuisible et comment est-il fait ?
-Le Management Engine (ME) dʼIntel est un logiciel propriétaire opaque et dont la fonction exacte nʼest pas vraiment connue. Il a un accès illimité à plusieurs branches de lʼordinateur (réseau,
-mémoire, disque dur…) et il est complètement transparent vis-à-vis du reste du système (donc ce quʼil fait nʼest pas détectable depuis le système dʼexploitation). Entre autres choses néfastes, le ME
-peut contrôler à distance presque tout lʼordinateur, ce qui constitue une très importante faille de sécurité (voir figure 1).
-Lʼobjectif du me_cleaner est ici de désactiver le ME après la phase de boot et limiter le ME a la stricte initialisation du matériel. Ainsi aucun accès mémoire, disque ou réseau ne peut avoir lieu après
-lʼamorçage du système et donc aucun accès aux données privées de lʼutilisateur final. Il y a par ailleurs une fonction qui permet à me_cleaner de réduire lʼespace occupé par le ME, et ainsi
-augmenter celui de coreboot (et SeaBIOS) permettant de rajouter des fonctionnalités (nous verrons cela dans une autre partie de l'article).
+This article aims to release recent hardware at a low level. Currently, only Libreboot (a distribution of Coreboot) allows for completely removing Intel's "Management Engine (ME)" and other proprietary blobs. However, it is possible to neutralize the ME with me_cleaner and reduce it to its most basic functions.
 
-Note
-Qu'est-ce que SeaBIOS ?
-SeaBIOS est une implémentation open source dʼun BIOS x86 16 bits, servant de microprogramme disponible gratuitement pour les systèmes x86. Visant la compatibilité, il prend en charge les fonctionnalités standards du BIOS et les interfaces dʼappel qui sont implémentées par un BIOS x86 propriétaire typique. SeaBIOS peut être utilisé comme payload par coreboot, ou peut être utilisé directement dans des émulateurs tels que QEMU et Bochs. Initialement, SeaBIOS était basé sur lʼimplémentation du BIOS open source incluse avec lʼémulateur Bochs. Le projet a été créé avec lʼintention de permettre une utilisation native sur le matériel x86 et dʼêtre basé sur une implémentation de code source interne améliorée et plus facilement extensible.
-SeaBIOS nʼest pas le seul payload que lʼon peut utiliser avec Coreboot. Il est aussi possible dʼinstaller un GRUB(1 ou 2), un micro-linux… Il existe plusieurs alternatives que lʼon trouve facilement sur le Web. Cependant cʼest clairement celui qui sʼinstalle et se configure le plus simplement. On peut également le modifier depuis le système dʼexploitation avec le logiciel nvramtools.
+The most advanced hardware compatible with Libreboot in Intel dates back to 2008 (Lenovo X200/T) and 2010 for AMD (Asus KPGE-D16), so rather old hardware that is still good for basic office or multimedia use. However, it is possible to neutralize the ME with me_cleaner and reduce it to its most basic functions. Here we will see how to use this software not on a standard BIOS (which is possible), but with Coreboot and SeaBIOS. The goal is to have a new free BIOS image with as few proprietary blobs as possible. Note that the manipulation was done with a Lenovo X230. I have no affiliation with them, but it's a brand whose laptops are particularly well supported by the Coreboot/Libreboot community, and for which we find many free drivers and good technical documentation. Everything presented in this article is therefore valid for most recent Thinkpads.
 
-1.3 Comment est fait un BIOS ?
-Étant donné que le test a été fait sur un Lenovo X230, je vais expliquer principalement comment fonctionne ce BIOS. Il a la particularité dʼavoir deux puces physiques pour une virtuelle mais, sur le principe, tous les BIOS x86 fonctionnent sur le modèle de la puce virtuelle (voir figure 2). Dans notre cas, nous avons deux puces flash SPI qui se cachent sous le plastique noir, étiquetées « SPI1 » et « SPI2 ». Visuellement, le premier est 4 Mio et contient le BIOS et le vecteur de réinitialisation (ce qui permet de faire fonctionner le bouton « Reset »). Celui du bas est de 8 Mio, il contient lʼIntel Management Engine (ME), lʼamorceur de réseau (GbE) et le descripteur flash. Les deux puces sont concaténées dans une puce virtuelle de 12Mio. On parle de régions de BIOS.
+The Problem with Recent Hardware
 
-1.4 Comment agissent Coreboot et me_cleaner sur cette structure ?
-Si lʼon reprend la structure (sans parler pour le moment dʼespace occupé), lʼIntel Flash Descriptor (IFD) est modifié par me_cleaner pour compenser la perte dʼespace du ME ; le BIOS, sans blobs VGA, est remplacé par coreboot + SeaBIOS (nous verrons plus tard ce que cʼest) et le GbE reste inchangé (voir figure 3). Nous verrons en dernière partie comment lʼespace occupé par lʼensemble des régions change avant et après les différentes étapes.
+The problem with newer hardware is that it is impossible to completely remove the ME; otherwise, the computer shuts down after 30 minutes due to a security measure imposed by Intel's proprietary software. However, there is a solution: me_cleaner and Coreboot. This small software allows neutralizing the ME and, when used with Coreboot, significantly reducing its size. We will see the details in a moment.
 
-2. Préparer la compilation
-2.1 Prérequis logiciels et matériels
-Au niveau du logiciel, nous avons besoin dʼun ordinateur hôte avec un système GNU/Linux dessus (jʼai utilisé Ubuntu 18.04 pour ce test, mais lʼopération fonctionne sur nʼimporte quelle distribution).
-Pensez à être le plus à jour possible pour éviter des problèmes de compatibilité de matériel, de compilation ou autre. Pour manipuler les images de BIOS, vous aurez besoin de flashrom installé dans sa dernière version, git et GCC à jour également.
-Pour le matériel, plusieurs solutions sont possibles et tout dépend du type de BIOS à flasher. Pour les cas les plus courants, les puces de BIOS sont à 8 ou 16 pins. Je conseille donc un programmateur de puce type CH341A (très abordable et simple à utiliser). Vous avez tout un tas dʼautres programmateurs disponibles sur le marché, mais généralement assez chers et complexes à utiliser. 
-Pour relier le programmateur au BIOS, il faudra nécessairement un clip SOIC 8 ou 16 en fonction de la taille de la puce et son câble pour le relier au programmateur. Je vous conseille de prendre la plus petite longueur possible pour éviter des problèmes lors des opérations sur le BIOS. Il faut bien entendu tout lʼoutillage traditionnel pour démonter un PC fixe ou portable (tournevis, clips en tous genres, etc.).
-2.2 Préparation de lʼhôte linux
-La première étape consistera donc à installer sur lʼordinateur qui permettra de compiler Coreboot lʼensemble des logiciels et codes sources nécessaires. On va donc procéder comme suit :
-Installation de flashrom, git et GCC : 
+To recap, Coreboot (formerly LinuxBIOS) is a free boot software project created in 1999. It aims to replace proprietary BIOS found in most computers with a system whose sole function is to load a modern 32 or 64-bit operating system.
+
+It is written in C and x86 assembly. me_cleaner is a Python script that can modify Intel's ME in a compiled BIOS image, ultimately reducing this firmware's capacity to interact with the system to its bare minimum. Below is a risk matrix for non-free parts contained in a BIOS:
+
+    Coreboot generally replaces the VGA and EC parts and does not touch the CPU microcode. By default, it integrates the original ME but can take a neutralized and reduced ME via me_cleaner, as we will see later.
+
+1. Clarifications
+1.1 What is the Management Engine?
+
+The Intel Management Engine (ME) is an autonomous subsystem incorporated in almost all Intel processor chipsets since 2008. The subsystem mainly consists of proprietary firmware running on a separate microprocessor that performs tasks during boot, while the computer is running, and while it is in sleep mode. As long as the chipset or SoC is connected to power (via battery or power supply), it continues to operate even when the system is off. Intel claims that the ME is necessary to provide full performance. Its exact workings are undocumented, and its code is obscured using confidential Huffman tables stored directly in the hardware, so the firmware does not contain the information needed to decode its content. However, low-level reverse engineering has allowed us to understand a good portion of ME's mechanisms. Intel's main competitor, AMD, has incorporated the equivalent, AMD Secure Technology (formerly called Platform Security Processor), into almost all post-2013 processors.
+
+The Management Engine is often confused with Intel AMT. AMT is based on the ME but is only available on processors with vPro technology. AMT allows owners to remotely manage their computer, such as turning it on or off and reinstalling the operating system.
+
+However, the ME itself is integrated into all Intel chipsets since 2008, not just those with AMT. While AMT can be unprovisioned by the owner, there is no official and documented way to disable the ME.
+
+The Electronic Frontier Foundation (EFF) and security expert Damien Zammit accuse the ME of being a backdoor and a privacy problem. Zammit states that the ME has full access to memory (without the parent CPU being aware), full access to the TCP/IP stack, and can send and receive network packets independently of the operating system, thus bypassing its firewall. Intel claims that it "does not dispute backdoors in its products" and that its products "do not allow Intel to control or access computer systems without the explicit permission of the end user."
+
+Several vulnerabilities have been found in the ME. On May 1, 2017, Intel confirmed the existence of a Remote Elevation of Privilege bug (SA-00075) in its management technology. Every Intel platform with standard management technology, active management, or small Intel-provided technologies, from Nehalem in 2008 to Kaby Lake in 2017, has a remotely exploitable security flaw in the ME. Several ways to disable the ME without authorization that could allow ME functions to be sabotaged have been found. Additional significant security vulnerabilities in the ME affecting a large number of computers with ME firmware, Trusted Execution Engine (TXE), and Server Platform Services (SPS), from Skylake in 2015 to Coffee Lake in 2017, were confirmed by Intel on November 20, 2017 (SA-00086). Unlike SA-00075, this bug is present even if AMT is absent, unprovisioned, or if the ME has been "disabled" by one of the known unofficial methods.
+
+1.2 Why is Intel's ME so harmful, and how is it made?
+
+Intel's Management Engine (ME) is opaque proprietary software whose exact function is not well known. It has unlimited access to several branches of the computer (network, memory, hard drive...) and is completely transparent to the rest of the system (so what it does is undetectable from the operating system). Among other harmful things, the ME can remotely control almost the entire computer, which is a significant security flaw.
+
+The goal of me_cleaner is to disable the ME after the boot phase and limit the ME to the strict initialization of the hardware. Thus, no memory, disk, or network access can take place after the system boots, and no access to the end user's private data can occur. Additionally, me_cleaner has a function that allows reducing the space occupied by the ME, thereby increasing that of Coreboot (and SeaBIOS), allowing for additional features (we will see this in another part of the article).
+Note: What is SeaBIOS?
+
+SeaBIOS is an open-source implementation of a 16-bit x86 BIOS, serving as free firmware for x86 systems. Aiming for compatibility, it supports standard BIOS features and call interfaces implemented by a typical proprietary x86 BIOS. SeaBIOS can be used as a payload by Coreboot or directly in emulators such as QEMU and Bochs. Initially, SeaBIOS was based on the open-source BIOS implementation included with the Bochs emulator. The project was created to enable native use on x86 hardware and be based on an improved and more easily extensible internal source code implementation.
+
+SeaBIOS is not the only payload that can be used with Coreboot. It is also possible to install a GRUB (1 or 2), a micro-Linux... Several alternatives can be found easily on the Web. However, it is clearly the one that installs and configures the most simply. It can also be modified from the operating system with the nvramtools software.
+1.3 How is a BIOS made?
+
+Since the test was done on a Lenovo X230, I will mainly explain how this BIOS works. It has the particularity of having two physical chips for one virtual one, but in principle, all x86 BIOSes work on the model of the virtual chip. In our case, we have two SPI flash chips hidden under the black plastic, labeled "SPI1" and "SPI2". Visually, the first one is 4 MB and contains the BIOS and the reset vector (which allows the "Reset" button to work). The bottom one is 8 MB, containing the Intel Management Engine (ME), the network bootloader (GbE), and the flash descriptor. The two chips are concatenated into a virtual 12 MB chip. We talk about BIOS regions.
+1.4 How do Coreboot and me_cleaner act on this structure?
+
+If we take the structure again (without talking about occupied space for now), the Intel Flash Descriptor (IFD) is modified by me_cleaner to compensate for the loss of ME space; the BIOS, without VGA blobs, is replaced by Coreboot + SeaBIOS (we will see later what this is), and the GbE remains unchanged.
+
+2. Preparing for Compilation
+2.1 Software and Hardware Prerequisites
+
+On the software level, we need a host computer with a GNU/Linux system (I used Ubuntu 18.04 for this test, but the operation works on any distribution). Be as up-to-date as possible to avoid hardware compatibility, compilation, or other issues. To manipulate BIOS images, you will need flashrom installed in its latest version, git, and GCC up-to-date as well.
+
+For the hardware, several solutions are possible, depending on the type of BIOS to flash. In the most common cases, the BIOS chips have 8 or 16 pins. I recommend a CH341A chip programmer (very affordable and easy to use). There are plenty of other programmers available on the market, but generally quite expensive and complex to use.
+
+To connect the programmer to the BIOS, you will necessarily need an SOIC 8 or 16 clip, depending on the size of the chip, and its cable to connect it to the programmer. I recommend taking the shortest possible length to avoid problems during BIOS operations. You will, of course, need all the traditional tools to disassemble a desktop or laptop computer (screwdrivers, clips of all kinds, etc.).
+2.2 Preparing the Linux Host
+
+The first step is to install on the computer that will compile Coreboot all the necessary software and source codes. Proceed as follows:
 ```
 $ sudo apt install flashrom bison build-essential curl flex git gnat libncurses5-dev libssl-dev m4 zlib1g-dev pkg-config wget
 ```
-On va ensuite récupérer les sources de Coreboot et me_cleaner puis compiler les différents outils (placez-vous à la base du home pour faire au plus simple). Il faut également créer 3 dossiers dont mainboard qui est générique puis un dossier selon la marque de la carte mère (pour le test Lenovo) et le modèle (pour le test X230). Des exemples sont disponibles dans la documentation officielle de Coreboot.
+Then retrieve the Coreboot and me_cleaner sources and compile the various tools (place yourself at the home base to keep it simple). You also need to create 3 folders: mainboard (generic), a folder for the motherboard brand (for the test Lenovo), and the model (for the test X230). Examples are available in the official Coreboot documentation.
 ```
 $ cd ~/
 $ git clone https://review.coreboot.org/coreboot
@@ -58,119 +73,120 @@ $ make -j4 && sudo make install
 $ cd ~/coreboot
 $ mkdir -p 3rdparty/blobs/mainboard/lenovo/x230/
 ```
-2.3 Préparation de la cible (lʼordinateur à flasher)
-La préparation a deux grandes phases : rendre le BIOS accessible (donc démonter le PC pour avoir accès au BIOS sur la carte mère comme on peut le voir en figure 4) et installer le clip (figure 5) sur le BIOS (attention au sens, il faut placer le numéro 1 du pin au même endroit sur le programmateur que sur le BIOS). Ensuite, on relie le clip au programmateur et le programmateur au PC (voir figure 6).
-Pensez à bien sauvegarder plusieurs fois lʼimage dʼorigine du BIOS pour revenir en arrière en cas dʼerreur avec flashrom[3] et la commande suivante (à adapter selon le type de BIOS) :
+2.3 Preparing the Target (the Computer to be Flashed)
+
+The preparation has two main phases: making the BIOS accessible (disassembling the PC to access the BIOS on the motherboard) and installing the clip on the BIOS (be careful with the orientation, place pin number 1 in the same spot on the programmer as on the BIOS). Then, connect the clip to the programmer and the programmer to the PC.
+
+Be sure to back up the original BIOS image multiple times to revert in case of error with flashrom and the following command (adapt according to the type of BIOS):
 ```
 $ sudo flashrom -p ch341a_spi -r backup.rom
 ```
-À noter que dans le cas où il y a deux puces physiques pour une puce virtuelle, il faut sauvegarder les deux et les concaténer en une seule complete.rom à lʼaide la commande cat pour le reste des
-opérations.
+Note that if there are two physical chips for one virtual chip, back up both and concatenate them into one complete.rom using the cat command for the remaining operations.
 ```
 $ sudo flashrom -p ch341a_spi -r 8MiB.rom
 $ sudo flashrom -p ch341a_spi -r 4MiB.rom
 $ cat 8MiB.rom 4MiB.rom > complete.rom
 ```
-2.4 Récupérer les données pour créer une rom Coreboot et neutraliser le ME
-Placez-vous là où se trouve lʼimage complete.rom (généralement ~/). Il faut maintenant extraire toutes les régions du BIOS dʼorigine pour récupérer les blobs tels que le ME ou le GbE. Exécutez donc la commande suivante :
-```
-$ ifdtool -x complete.rom
-```
-Vous devrez trouver les fichiers suivants (rappelez-vous la première partie sur la structure dʼun BIOS) :
-• flashregion_0_flashdescriptor.bin ;
-• flashregion_1_BIOS.bin ;
-• flashregion_2_intel_me.bin ;
-• flashregion_3_gbe.bin.
-Copiez ensuite flashregion_3_gbe.bin vers le dossier 3rdparty/blobs/mainboard/lenovo/x230 en le renommant comme suit :
+You should find the following files (remember the first part about BIOS structure):
+
+    flashregion_0_flashdescriptor.bin
+    flashregion_1_BIOS.bin
+    flashregion_2_intel_me.bin
+    flashregion_3_gbe.bin
+
+Copy flashregion_3_gbe.bin to the folder 3rdparty/blobs/mainboard/lenovo/x230 and rename it as follows:
 ```
 $ cp flashregion_3_gbe.bin 3rdparty/blobs/mainboard/lenovo/x230/gbe.bin
 ```
-Il faut maintenant neutraliser et réduire le ME à lʼaide de me_cleaner. Ce procédé va réduire la taille de la région du ME en la divisant par 5 par rapport à lʼoriginale. Il suffit de lancer la commande suivante :
+Now neutralize and reduce the ME using me_cleaner. This process will reduce the size of the ME region by five times compared to the original. Run the following command:
 ```
 $ python3 ~/coreboot/util/me_cleaner/me_cleaner.py -S -r -t -d -O out.bin -D ifd_shrinked.bin -M me_shrinked.bin ./complete.rom
 ```
-Nous prêterons plus dʼattention à cette commande dans une prochaine partie pour expliquer en détail le fonctionnement de me_cleaner et son effet sur la ROM finale. Ce quʼil faut savoir pour le moment cʼest que me_shrinked.bin correspond au flashregion_2_intel_me.bin de la ROM dʼorigine, mais avec un ME neutralisé et une taille réduite (par 5 environ) et que ifd_sjrinked.bin correspond au nouveau descripteur de flash (région ) qui indique comment sont placés les régions les unes par rapport aux autres. Au final, nous avons maintenant 3 nouveaux fichiers :
-• out.bin qui est inutile ;
-• ifd_shrinked.bin, le nouveau descripteur ;
-• me_shrinked.bin, le nouveau ME neutralisé et réduit.
+We will pay more attention to this command in the next part to explain in detail the operation of me_cleaner and its effect on the final ROM. For now, note that me_shrinked.bin corresponds to the flashregion_2_intel_me.bin of the original ROM, but with a neutralized ME and reduced size (about five times smaller) and ifd_shrinked.bin corresponds to the new flash descriptor (region) indicating how the regions are placed relative to each other. In the end, we now have three new files:
 
-Il faut maintenant copier le nouveau ME et le nouveau descripteur dans le dossier des blobs :
+    out.bin, which is useless
+    ifd_shrinked.bin, the new descriptor
+    me_shrinked.bin, the new neutralized and reduced ME
+
+Copy the new ME and descriptor to the blobs folder:
 ```
 $ cp ifd_shrinked.bin 3rdparty/blobs/mainboard/lenovo/x230/descriptor.bin
 $ cp me_shrinked.bin 3rdparty/blobs/mainboard/lenovo/x230/me.bin
 ```
-À ce stade des opérations, nous avons tous les éléments nécessaires pour construire une nouvelle ROM basée sur Coreboot et SeaBIOS.
+At this stage of the operations, we have all the elements necessary to build a new ROM based on Coreboot and SeaBIOS.
+3. Compile a New Coreboot ROM and Flash the Thinkpad
+3.1 Compiling the Coreboot ROM
 
-3. Compiler une nouvelle ROM Coreboot et flasher le Thinkpad
-3.1 Compilation de la ROM Coreboot
-Nous allons maintenant très simplement compiler une nouvelle ROM Coreboot. On commence par se rendre dans le dossier coreboot :
+Now, we will very simply compile a new Coreboot ROM. Start by going to the coreboot folder:
 ```
 $ cd ~/coreboot
 ```
-Étant donné que tous les blobs ont été copiés, nous pouvons rentrer dans le menu qui permet deconfigurer la future ROM Coreboot et créer un fichier.conf qui servira à donner les indications de compilation. Depuis la version 4.8 de Coreboot, SeaBIOS se télécharge, se configure et se compile dans la ROM finale automatiquement.
+Since all the blobs have been copied, we can enter the menu to configure the future Coreboot ROM and create a .conf file that will serve to give compilation instructions. Since version 4.8 of Coreboot, SeaBIOS is downloaded, configured, and compiled into the final ROM automatically.
 ```
 $ make nconfig
 ```
-Une fenêtre sʼouvre dans le terminal, il faudra y naviguer avec les flèches directionnelles du clavier et utiliser la barre dʼespace pour sélectionner une valeur.
+A window opens in the terminal; navigate it using the arrow keys and use the space bar to select a value.
 
-Dans le menu General Setup : Set « Set CMOS for configuration values ».
-Dans le menu Payloads : Set « Add a payload » → SeaBIOS → git version.
-Dans le menu Mainboard : Set « Mainboard Vendor » to “Lenovo” et
-Set « Mainboard model » to « X230 ».
-Dans le menu Chipset (les chemins complets s'ajoutent automatiquement):
-Set « Add Intel descriptor.bin file »,
-Set « Add Intel ME firmware » et
-Set « Add Gigabite Ethernet firmware ».
-Dans le menu Devices : Set « Use native graphics initialization ».
-Voilà, la configuration est terminée, il faut maintenant compiler la ROM :
+In the General Setup menu: Set "Set CMOS for configuration values".
+In the Payloads menu: Set "Add a payload" → SeaBIOS → git version.
+In the Mainboard menu: Set "Mainboard Vendor" to “Lenovo” and Set "Mainboard model" to "X230".
+In the Chipset menu (the complete paths are automatically added):
+
+    Set "Add Intel descriptor.bin file",
+    Set "Add Intel ME firmware" and
+    Set "Add Gigabit Ethernet firmware".
+
+In the Devices menu: Set "Use native graphics initialization".
+
+The configuration is complete; now compile the ROM:
 ```
 $ make CPUS=$(nproc)
 ```
-La ROM est générée dans ~/coreboot/builds/coreboot.rom.
+The ROM is generated in ~/coreboot/builds/coreboot.rom.
+3.2 Flashing the Laptop with the New ROM
 
-3.2 Flasher le portable avec la nouvelle ROM
-Note
-Flasher un BIOS
-Attention tout de même ! La manipulation est risquée et peut rendre lʼordinateur inopérant. 
-Construire et remplacer un BIOS nʼest pas une opération simple. Cela demande du temps, du courage et beaucoup de patience. Plusieurs étapes de vérification sont nécessaires, tout comme un matériel adapté. Évitez les soudures ou tout chose qui peut altérer physiquement le matériel.
-Avant de flasher de façon hardware, il faut préparer les deux ROM qui iront sur la puce de 4 Mio et celle de 8 Mio. Pour rappel (voir partie 2), il y a deux puces dans un ordre précis 8 Mio dʼabord et 4 Mio ensuite. Il faut donc maintenant séparer la ROM récemment créée. Pour cela, on va lancer les commandes suivantes :
+Note: Flashing a BIOS
+
+Be careful! The manipulation is risky and can render the computer inoperable. Building and replacing a BIOS is not a simple operation. It requires time, courage, and a lot of patience. Several verification steps are necessary, as well as suitable hardware. Avoid soldering or anything that can physically alter the hardware.
+
+Before flashing hardware-wise, prepare the two ROMs that will go on the 4 MB and 8 MB chips. Recall (see part 2) that there are two chips in a specific order: 8 MB first and 4 MB second. Now, separate the recently created ROM. Run the following commands:
 ```
 $ dd of=new_top.rom bs=1M if=~/coreboot/builds/coreboot.rom skip=8
-$ dd of=`ew_bottom.rom bs=1M if=~/coreboot/builds/coreboot.rom count=8
+$ dd of=new_bottom.rom bs=1M if=~/coreboot/builds/coreboot.rom count=8
 ```
-Lʼargument bs (block size) 1M veut dire que lʼon fait des pas de 1 Mio, lʼargument skip=8 signifie que lʼon saute les 8 premiers blocs de 1M donc que lʼon ne prend que la partie finale de 4 Mio, lʼargument
-count est lʼinverse, on ne prend que les 8 premiers blocs de 1 Mio. Au final, nous avons donc deux images, une de 4 Mio et une de 8 Mio. Comme les deux images sont ensuite assemblées dans une image virtuelle de 12 Mio peu importe la répartition des régions au sein des deux puces dès lʼinstant que le descripteur est dans la puce de 8 Mio (donc au début). On peut maintenant flasher le BIOS avec la même commande pour lʼextraction ou presque (avec la même contrainte matérielle que dans la partie précédente). Vous pouvez ensuite redémarrer le PC.
+The argument bs (block size) 1M means we take steps of 1 MB; the argument skip=8 means we skip the first 8 blocks of 1 MB, so we only take the final 4 MB part; the argument count is the inverse, we only take the first 8 blocks of 1 MB. In the end, we have two images, one of 4 MB and one of 8 MB. Since the two images are then assembled into a virtual 12 MB image, the allocation of regions within the two chips does not matter as long as the descriptor is in the 8 MB chip (at the beginning). We can now flash the BIOS with the same command for extraction or almost (with the same hardware constraint as in the previous part). You can then restart the PC.
 ```
 $ sudo flashrom -p ch341a_spi -r new_bottom.rom -c 
 $ sudo flashrom -p ch341a_spi -r new_top.rom
 ```
-4 Résultats de lʼopération et explications
-Voyons maintenant ce que lʼon a dans la nouvelle ROM par rapport à lʼancienne avec un simple ls -al (jʼai fait un idftools -x sur la ROM complet.rom dʼorigine et sur coreboot.rom qui est la nouvelle image de BIOS (avec la région du ME réduit et neutralisée par me_cleaner)) :
+4. Operation Results and Explanations
+
+Let's see what we have in the new ROM compared to the old one with a simple ls -al (I did an idftools -x on the original complete.rom and on coreboot.rom which is the new BIOS image (with the ME region reduced and neutralized by me_cleaner)):
 ```
 ThinkPad-X230:~/coreboot/local_BIOS$ ll *.bin
-— rw-r--r-- 1 robin robin 12472320 juil. 9 21:33 BIOS_local.bin
-— rw-r--r-- 1 robin robin 7340032 juil. 9 21:39 BIOS_origine.bin
-— rw-r--r-- 1 robin robin 98304 juil. 9 21:33 me_local.bin
-— rw-r--r-- 1 robin robin 5230592 juil. 9 21:39 me_origine.bin
+-rw-r--r-- 1 user user 12472320 Jul  9 21:33 BIOS_local.bin
+-rw-r--r-- 1 user user 7340032 Jul  9 21:39 BIOS_origine.bin
+-rw-r--r-- 1 user user 98304 Jul  9 21:33 me_local.bin
+-rw-r--r-- 1 user user 5230592 Jul  9 21:39 me_origine.bin
 ```
-On remarque tout de suite deux choses : la région ME et la région BIOS ont changé de taille. En effet, me_cleaner a réduit la taille du ME pour ne garder que les fonctions essentielles à lʼinitialisation des composants. La taille est passée de 5,230592 Mio à 0,98304 Mio, soit une division par plus de 5 ! Lʼespace libéré est ensuite récupéré par le BIOS dʼoù la génération par me_cleaner de 2 binaires au lieu dʼun. Le GbE et le descripteur restent inchangés en taille.
-Comme nous avions vu au début de ce document, la structure initiale du BIOS correspond à la figure
 
-7.
-Lʼutilisation de la commande de neutralisation et de réduction du ME a affecté la structure du ME et donc contraint de modifier le descripteur pour garder la cohérence de la ROM et permettre de flasher à nouveau la puce sans incidence (voir figure 8).
+We immediately notice two things: the ME region and the BIOS region have changed in size. Indeed, me_cleaner has reduced the size of the ME to keep only the functions essential for component initialization. The size went from 5.230592 MB to 0.098304 MB, a reduction of over 5 times! The freed space is then recovered by the BIOS, hence the generation by me_cleaner of 2 binaries instead of one. The GbE and the descriptor remain unchanged in size.
 
+As we saw at the beginning of this document, the initial BIOS structure corresponds to the figure.
+
+Using the command to neutralize and reduce the ME affected the ME structure and therefore forced the descriptor to be modified to maintain ROM consistency and allow re-flashing the chip without impact.
 Conclusion
-En conclusion, nous avons vu quʼil est possible et assez simple de remplacer son BIOS par une alternative libre et limiter les failles de sécurité sur les plateformes Intel en attendant de meilleurs jours. Je vous invite à regarder les différents liens en référence et lire les documents annexes pour mieux comprendre les enjeux de sécurité à bas niveau, comment les failles sont exploitées et comment aller encore plus loin dans la sécurisation de votre ordinateur avec Coreboot.
 
-Références
-[1] Documentation officielle de Coreboot : https://coreboot.org/users.html (https://coreboot.org/users.html)
-[2] Page officielle de me_cleaner : https://github.com/corna/me_cleaner (https://github.com/corna/me_cleaner)
-[3] Page officielle du matériel supporté par flashrom : https://www.flashrom.org/Supported_hardware (https://www.flashrom.org/Supported_hardware).
+In conclusion, we have seen that it is possible and quite simple to replace your BIOS with a free alternative and limit security flaws on Intel platforms while waiting for better days. I invite you to look at the various links in the references and read the additional documents to better understand low-level security issues, how flaws are exploited, and how to go even further in securing your computer with Coreboot.
+References
 
-Pour aller plus loin
-La présentation « Intel ME Secrets » de Igor Skochinsky au RECON de Montréal (Canada) en 2014 : https://recon.cx/2014/slides/Recon%202014 %20Skochinsky.pdf (https://recon.cx/2014/slides/Recon%202014 %20Skochinsky.pdf)
-La présentation « Intel ME : The Way of the Static Analysis » par lʼéquipe de recherche de Positive Technologies, 2017, Heidelberg (Allemagne) :
-https://www.troopers.de/downloads/troopers17/TR17_ME11_Static.pdf (https://www.troopers.de/downloads/troopers17/TR17_ME11_Static.pdf)
-Article sur le blog de la FSF « The Intel Management Engine: an attack on computer users' freedom »avec la contribution de Denis GNUtoo Carikli, Molly de Blanc, du 10 janvier 2018 : https://www.fsf.org/blogs/sysadmin/the-management-engine-an-attack-on-computer-users-freedom (https://www.fsf.org/blogs/sysadmin/the-management-engine-an-attack-on-computer-users-freedom)
-Site officiel des développeurs de Heads, une distribution ultra-sécurisée de Coreboot : http://osresearch.net/ (http://osresearch.net/)
+[1] Coreboot Official Documentation : https://coreboot.org/users.html (https://coreboot.org/users.html)
+[2] me_cleaner Official Page : https://github.com/corna/me_cleaner
+[3] Flashrom Supported Hardware Page : https://www.flashrom.org/Supported_hardware
 
+To Learn More
+
+    Intel ME Secrets by Igor Skochinsky at RECON in Montreal (Canada), 2014. (https://recon.cx/2014/slides/Recon%202014 %20Skochinsky.pdf (https://recon.cx/2014/slides/Recon%202014 %20Skochinsky.pdf)
+    Intel ME: The Way of the Static Analysis by the Positive Technologies research team, 2017, Heidelberg (Germany). (https://www.troopers.de/downloads/troopers17/TR17_ME11_Static.pdf (https://www.troopers.de/downloads/troopers17/TR17_ME11_Static.pdf)
+    The Intel Management Engine: An Attack on Computer Users' Freedom with contributions from Denis GNUtoo Carikli and Molly de Blanc, January 10, 2018. (https://www.fsf.org/blogs/sysadmin/the-management-engine-an-attack-on-computer-users-freedom)
+    Heads Official Site, a highly secure Coreboot distribution. (http://osresearch.net/)
