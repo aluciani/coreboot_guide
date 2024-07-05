@@ -233,12 +233,21 @@ In conclusion, we have seen that it is possible and quite simple to replace your
 References
 
 [1] Coreboot Official Documentation : https://coreboot.org/users.html (https://coreboot.org/users.html)
+
 [2] me_cleaner Official Page : https://github.com/corna/me_cleaner
+
 [3] Flashrom Supported Hardware Page : https://www.flashrom.org/Supported_hardware
 
 To Learn More
 
-    Intel ME Secrets by Igor Skochinsky at RECON in Montreal (Canada), 2014. (https://recon.cx/2014/slides/Recon%202014 %20Skochinsky.pdf (https://recon.cx/2014/slides/Recon%202014 %20Skochinsky.pdf)
-    Intel ME: The Way of the Static Analysis by the Positive Technologies research team, 2017, Heidelberg (Germany). (https://www.troopers.de/downloads/troopers17/TR17_ME11_Static.pdf (https://www.troopers.de/downloads/troopers17/TR17_ME11_Static.pdf)
-    The Intel Management Engine: An Attack on Computer Users' Freedom with contributions from Denis GNUtoo Carikli and Molly de Blanc, January 10, 2018. (https://www.fsf.org/blogs/sysadmin/the-management-engine-an-attack-on-computer-users-freedom)
-    Heads Official Site, a highly secure Coreboot distribution. (http://osresearch.net/)
+    Intel ME Secrets by Igor Skochinsky at RECON in Montreal (Canada), 2014. 
+        (https://recon.cx/2014/slides/Recon%202014 %20Skochinsky.pdf (https://recon.cx/2014/slides/Recon%202014 %20Skochinsky.pdf)
+    
+    Intel ME: The Way of the Static Analysis by the Positive Technologies research team, 2017, Heidelberg (Germany). 
+        (https://www.troopers.de/downloads/troopers17/TR17_ME11_Static.pdf (https://www.troopers.de/downloads/troopers17/TR17_ME11_Static.pdf)
+        
+    The Intel Management Engine: An Attack on Computer Users' Freedom with contributions from Denis GNUtoo Carikli and Molly de Blanc, January 10, 2018. 
+        (https://www.fsf.org/blogs/sysadmin/the-management-engine-an-attack-on-computer-users-freedom)
+        
+    Heads Official Site, a highly secure Coreboot distribution. 
+        (http://osresearch.net/)
