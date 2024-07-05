@@ -41,7 +41,9 @@ Several vulnerabilities have been found in the ME. On May 1, 2017, Intel confirm
 
 Intel's Management Engine (ME) is opaque proprietary software whose exact function is not well known. It has unlimited access to several branches of the computer (network, memory, hard drive...) and is completely transparent to the rest of the system (so what it does is undetectable from the operating system). Among other harmful things, the ME can remotely control almost the entire computer, which is a significant security flaw (see figure 1).
 
+
 ![Coreboot_and_me_cleaner_figure_01](https://github.com/123ahaha/coreboot_guide/assets/97607910/0dd5b804-706f-41fa-9b6e-bfe1a4067348)
+
 Fig. 1: Diagram showing what the ME can control (full control) without any countermeasures by the end user (no interface).
 
 The goal of me_cleaner is to disable the ME after the boot phase and limit the ME to the strict initialization of the hardware. Thus, no memory, disk, or network access can take place after the system boots, and no access to the end user's private data can occur. Additionally, me_cleaner has a function that allows reducing the space occupied by the ME, thereby increasing that of Coreboot (and SeaBIOS), allowing for additional features (we will see this in another part of the article).
@@ -52,13 +54,18 @@ SeaBIOS is not the only payload that can be used with Coreboot. It is also possi
 
 # 1.3 How is a BIOS made?
 Since the test was done on a Lenovo X230, I will mainly explain how this BIOS works. It has the particularity of having two physical chips for one virtual one, but in principle, all x86 BIOSes work on the model of the virtual chip (see figure 2). In our case, we have two SPI flash chips hidden under the black plastic, labeled "SPI1" and "SPI2". Visually, the first one is 4 MB and contains the BIOS and the reset vector (which allows the "Reset" button to work). The bottom one is 8 MB, containing the Intel Management Engine (ME), the network bootloader (GbE), and the flash descriptor. The two chips are concatenated into a virtual 12 MB chip. We talk about BIOS regions.
+
+
 ![Coreboot_and_me_cleaner_figure_021](https://github.com/123ahaha/coreboot_guide/assets/97607910/7e3efd1c-5c42-4fb2-98c7-67168d38f884)
+
 Fig. 2: Diagram of a BIOS with two physical chips read as one. When there is only one physical chip, the regions simply follow one another.
 
 # 1.4 How do Coreboot and me_cleaner act on this structure?
 If we take the structure again (without talking about occupied space for now), the Intel Flash Descriptor (IFD) is modified by me_cleaner to compensate for the loss of ME space; the BIOS, without VGA blobs, is replaced by Coreboot + SeaBIOS (we will see later what this is), and the GbE remains unchanged (see figure 3).
 
+
 ![Coreboot_and_me_cleaner_figure_03](https://github.com/123ahaha/coreboot_guide/assets/97607910/82082486-4dfc-426f-88ee-92fd05df2d8b)
+
 Fig. 3: Diagram showing the regions affected (and how) by the use of Coreboot and me_cleaner. The network region remains unchanged.
 
 # 2. Preparing for Compilation
@@ -93,13 +100,19 @@ $ mkdir -p 3rdparty/blobs/mainboard/lenovo/x230/
 
 The preparation has two main phases: making the BIOS accessible (disassembling the PC to access the BIOS on the motherboard see figure 4) and installing the clip (figure 5) on the BIOS (be careful with the orientation, place pin number 1 in the same spot on the programmer as on the BIOS). Then, connect the clip to the programmer and the programmer to the PC (see figure 6).
 
+
 ![Coreboot_and_me_cleaner_figure_04](https://github.com/123ahaha/coreboot_guide/assets/97607910/e92a1b02-b031-4e4e-873a-f366c9110ad0)
+
 Fig. 4: Photo of a BIOS, in this case, a Lenovo X230 with two SOIC 8 type chips.
 
+
 ![Coreboot_and_me_cleaner_figure_05](https://github.com/123ahaha/coreboot_guide/assets/97607910/a3de1c1b-d287-4961-9d18-9d6ce02fb976)
+
 Fig. 5: Photo of the type of clip needed for SOIC 8 or 16 chips.
 
+
 ![Coreboot_and_me_cleaner_figure_06](https://github.com/123ahaha/coreboot_guide/assets/97607910/6412d8e5-4681-4630-bd26-98e204118047)
+
 Fig. 6: Photo of the wired and connected programmer. The number 1, which must be connected to the corresponding pin on the BIOS, is clearly visible.
 
 Be sure to back up the original BIOS image multiple times to revert in case of error with flashrom and the following command (adapt according to the type of BIOS):
@@ -202,12 +215,16 @@ We immediately notice two things: the ME region and the BIOS region have changed
 
 As we saw at the beginning of this document, the initial BIOS structure corresponds to the figure 7.
 
+
 ![Coreboot_and_me_cleaner_figure_07](https://github.com/123ahaha/coreboot_guide/assets/97607910/e09925e5-eb95-4320-b1d8-d5d155d525b2)
+
 Fig. 7: Image showing the standard structure of a BIOS before using me_cleaner.
 
 Using the command to neutralize and reduce the ME affected the ME structure and therefore forced the descriptor to be modified to maintain ROM consistency and allow re-flashing the chip without impact (see figure 8).
 
+
 ![Coreboot_and_me_cleaner_figure_08](https://github.com/123ahaha/coreboot_guide/assets/97607910/7565041a-e806-4007-9a30-f29234167da6)
+
 Fig. 8: Image showing the structure of a BIOS after ME reduction and neutralization.
 
 # Conclusion
