@@ -91,7 +91,9 @@ $ cd coreboot
 $ git submodule update --init --checkout
 $ make crossgcc-i386 CPUS=$(nproc)
 $ cd util/ifdtool
-$ make -j4 && sudo make install
+$ make CPUS=$(nproc) && sudo make install
+$ cd ../cbfstool
+$ make CPUS=$(nproc) && sudo make install
 $ cd ~/coreboot
 $ mkdir -p 3rdparty/blobs/mainboard/lenovo/x230/
 ```
