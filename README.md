@@ -125,6 +125,13 @@ $ sudo flashrom -p ch341a_spi -r 8MiB.rom
 $ sudo flashrom -p ch341a_spi -r 4MiB.rom
 $ cat 8MiB.rom 4MiB.rom > complete.rom
 ```
+
+Go to the location of the complete.rom image. Now you need to extract all the regions of the original BIOS to recover blobs such as IME or GbE or IFD. Run the following command:
+
+```
+$ ifdtool -x complete.rom
+```
+
 You should find the following files (remember the first part about BIOS structure):
 
     flashregion_0_flashdescriptor.bin
